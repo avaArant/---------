@@ -1,0 +1,76 @@
+services:
+  ozon-fbo-service:
+    build: .
+    container_name: ozon-fbo-service
+    ports:
+      - "8001:8001"
+    environment:
+      - APP_NAME=Ozon FBO Streaming API
+      - APP_VERSION=2.0.0
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8001
+      - DEBUG=False
+      - LOG_LEVEL=INFO
+
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_ENABLED=true
+      - CACHE_TTL=300
+      - CACHE_PREFIX=ozon_stream
+
+      # Streaming
+      - STREAM_CHUNK_SIZE=10
+      - STREAM_TIMEOUT=300
+      - STREAM_BUFFER_SIZE=100
+
+      # Security
+      - MAX_REQUEST_SIZE_MB=10
+      - MAX_PERIOD_DAYS=30
+      - CONNECTION_TIMEOUT=10
+
+      # Для тестов (можно убрать в продакшене)
+      - USE_MOCK=False
+      - OZON_CLIENT_ID=test_client
+      - OZON_API_KEY=test_api_key
+
+    volumes:
+      - ./logs:/app/logs:rw
+      - ./data:/app/data:rw
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - ozon-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: ozon-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      # Монтируем конфиг Redis
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - ozon-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+
+networks:
+  ozon-network:
+    driver: bridge
